@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getMysqlSsl } from './utils/mysqlSsl.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,8 @@ async function setupDatabase() {
       port: Number(DB_PORT),
       user: DB_USER,
       password: DB_PASS,
+      database: DB_NAME,
+      ssl: getMysqlSsl(),
       multipleStatements: true
     });
 

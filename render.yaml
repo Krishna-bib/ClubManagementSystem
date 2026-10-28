@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: club-management-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: USE_REAL_MYSQL
+        value: "true"
+      - key: DB_SSL
+        value: "true"
+      - key: DB_NAME
+        value: club_management
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_SSL_CA
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true

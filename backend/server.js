@@ -10,6 +10,7 @@ import { body, validationResult } from 'express-validator';
 import { generateCertificate } from "./utils/generateCertificate.js";
 import sendMail from "./utils/sendMail.js";
 import mockDb from "./mockDb.js";
+import { getMysqlSsl } from './utils/mysqlSsl.js';
 
 
 dotenv.config();
@@ -32,6 +33,9 @@ if (IS_PRODUCTION) {
   }
   if (!CORS_ORIGINS.length) {
     throw new Error('Production requires CORS_ORIGIN to list the deployed frontend origin(s).');
+  }
+  if (process.env.DB_SSL !== 'true' || !process.env.DB_SSL_CA) {
+    throw new Error('Production requires verified MySQL TLS configured with DB_SSL=true and DB_SSL_CA.');
   }
 }
 
@@ -66,6 +70,7 @@ if (USE_REAL_MYSQL) {
       user: process.env.DB_USER,
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
+      ssl: getMysqlSsl(),
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0
@@ -965,7 +970,7 @@ app.get('/api/admin/dashboard', authenticateToken, checkAdmin, async (req, res) 
 
     // Get counts
     const [[eventCount]] = await db.query('SELECT COUNT(*) as count FROM events');
-    const [[userCount]] = await db.query('SELECT COUNT(*) as count FROM users WHERE role = "user"');
+    const [[userCount]] = await db.query("SELECT COUNT(*) as count FROM users WHERE role = 'user'");
     const [[regCount]] = await db.query('SELECT COUNT(*) as count FROM registrations');
 
     stats.totalEvents = eventCount.count;
