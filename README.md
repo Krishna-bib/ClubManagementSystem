@@ -34,12 +34,12 @@ The repository includes Dockerfiles and Railway configuration for separate API a
    DB_PORT=${{MySQL.MYSQLPORT}}
    DB_USER=${{MySQL.MYSQLUSER}}
    DB_PASS=${{MySQL.MYSQLPASSWORD}}
-   DB_NAME=${{MySQL.MYSQLDATABASE}}
+   DB_NAME=club_management
    JWT_SECRET=<a private random value of at least 32 characters>
    CORS_ORIGIN=http://localhost:5173
    ```
 
-   Use Railway's private database hostname/port for the API connection, not a public proxy URL. Keep `DB_PASS` and `JWT_SECRET` in Railway's Variables; never commit them.
+   `DB_NAME` must be `club_management` because that is the database selected by `backend/schema.sql`. Use Railway's private database hostname/port for the API connection, not a public proxy URL. Keep `DB_PASS` and `JWT_SECRET` in Railway's Variables; never commit them.
 
 2. **Initialize the database:** once the MySQL service is ready, run `backend/schema.sql` against it once using Railway's database console or a MySQL client connected through the database's secure connection details. This creates the tables and sample clubs/events, without a pre-seeded admin or shared default account. Do not point a production deployment at your local database.
 
