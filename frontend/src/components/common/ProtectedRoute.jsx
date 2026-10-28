@@ -19,14 +19,7 @@
 // export default ProtectedRoute;
 
 
-import axios from 'axios';
-
-const API = axios.create({
-  baseURL: 'http://localhost:5000/api',
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+import API from '../../services/api';
 
 // Token management
 export const getToken = () => localStorage.getItem('token');
@@ -65,15 +58,11 @@ export const setUserRole = (role) => {
 
 // Auth functions
 export const login = async (credentials) => {
-  try {
-    const response = await API.post('/login', credentials);
-    const { token, role } = response.data;
-    setToken(token);
-    setUserRole(role);
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
+  const response = await API.post('/login', credentials);
+  const { token, role } = response.data;
+  setToken(token);
+  setUserRole(role);
+  return response.data;
 };
 
 export const logout = () => {

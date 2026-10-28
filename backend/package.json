@@ -1,19 +1,24 @@
 {
-  "dependencies": {
-    
-  "type": "module",
   "name": "backend",
   "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "setup-db": "node setup-db.js",
+    "test": "node --test test/app.test.js"
+  },
+  "dependencies": {
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.14.1",
-    "nodemailer": "^7.0.12"
-    
+    "nodemailer": "^7.0.12",
+    "pdfkit": "^0.17.2"
+
   }
 }

@@ -89,7 +89,7 @@ const EventRegistrations = () => {
               <tbody className="divide-y divide-gray-200">
                 {registrations.map((registration) => (
                   <tr key={registration.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">{registration.user_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{registration.user_name || registration.name || 'Unknown'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{registration.user_email}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(registration.created_at).toLocaleDateString()}

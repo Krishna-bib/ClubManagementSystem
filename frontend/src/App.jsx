@@ -9,7 +9,6 @@ import AddEvent from './components/admin/addevent';
 import Register from './components/user/register';
 import EventRegistrations from './components/admin/eventregistrations';
 import DashboardHome from './components/admin/DashboardHome';
-import VerifyOtp from './components/admin/VerifyOtp';
 import CreateClub from './components/admin/CreateClub';
 import ClubDashboard from './components/admin/ClubDashboard';
 import ClubEvents from './components/admin/ClubEvents';
@@ -22,7 +21,6 @@ function App() {
       <Route path="/" element={<Navigate to="/login" />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      <Route path="/verify-otp" element={<VerifyOtp />} />
 
       {/* User Routes */}
       <Route path="/user" element={<UserDashboard />} />

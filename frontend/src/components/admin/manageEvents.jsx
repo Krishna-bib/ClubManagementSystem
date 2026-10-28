@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import API from '../../services/api';
 import { useParams } from "react-router-dom";
 const ManageEvents = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [updatingEventId, setUpdatingEventId] = useState(null);
+  const [statusError, setStatusError] = useState('');
+  const { clubId } = useParams();
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
- const { clubId } = useParams();
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       const response = await API.get(`/clubs/${clubId}/manageevents`);
@@ -22,8 +21,11 @@ const ManageEvents = () => {
     } finally {
       setLoading(false);
     }
-  };
- 
+  }, [clubId]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
 
  const deleteEvent = async (id) => {
@@ -43,14 +45,22 @@ const ManageEvents = () => {
 };
 
   const updateStatus = async (id, newStatus) => {
+    const previousStatus = events.find(event => event.id === id)?.status;
+    setStatusError('');
+    setUpdatingEventId(id);
     try {
       await API.patch(`/clubs/${clubId}/events/${id}`, { status: newStatus });
-      setEvents(events.map(event => 
+      setEvents(currentEvents => currentEvents.map(event =>
         event.id === id ? { ...event, status: newStatus } : event
       ));
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update event status');
+      setStatusError(error.response?.data?.error || 'Failed to update event status. Please try again.');
+      setEvents(currentEvents => currentEvents.map(event =>
+        event.id === id ? { ...event, status: previousStatus } : event
+      ));
+    } finally {
+      setUpdatingEventId(null);
     }
   };
 
@@ -60,6 +70,11 @@ const ManageEvents = () => {
   return (
     <div className="container mx-auto p-6">
       <h2 className="text-2xl font-bold mb-6">Manage Events</h2>
+      {statusError && (
+        <div role="alert" className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {statusError}
+        </div>
+      )}
       <div className="grid gap-6">
         {events.map(event => (
           <div key={event.id} className="bg-white p-6 rounded-lg shadow-md">
@@ -86,6 +101,7 @@ const ManageEvents = () => {
                 <select
                   value={event.status}
                   onChange={(e) => updateStatus(event.id, e.target.value)}
+                  disabled={updatingEventId === event.id}
                   className="block w-full p-2 border rounded mb-2"
                 >
                   <option value="upcoming">Upcoming</option>

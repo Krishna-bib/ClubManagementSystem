@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import API from '../../services/api';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -48,6 +49,11 @@ const Login = () => {
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
             {error}
+          </div>
+        )}
+        {location.state?.message && (
+          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-md">
+            {location.state.message}
           </div>
         )}
 

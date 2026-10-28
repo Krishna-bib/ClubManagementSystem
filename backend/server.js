@@ -7,18 +7,36 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { body, validationResult } from 'express-validator';
-import sendOtpMail from './utils/sendOtpMail.js';
 import { generateCertificate } from "./utils/generateCertificate.js";
 import sendMail from "./utils/sendMail.js";
+import mockDb from "./mockDb.js";
 
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+if (IS_PRODUCTION) {
+  if (process.env.USE_REAL_MYSQL !== 'true' || !process.env.DB_HOST || !process.env.DB_USER
+    || !process.env.DB_PASS || !process.env.DB_NAME) {
+    throw new Error('Production requires USE_REAL_MYSQL=true and complete MySQL credentials.');
+  }
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('Production requires a JWT_SECRET of at least 32 characters.');
+  }
+  if (!CORS_ORIGINS.length) {
+    throw new Error('Production requires CORS_ORIGIN to list the deployed frontend origin(s).');
+  }
+}
 
 
-app.use(cors());
+app.use(cors({ origin: CORS_ORIGINS.length ? CORS_ORIGINS : true }));
 app.use(express.json());
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
@@ -36,29 +54,51 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Database connection with better error handling
-const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-}).promise();
+// Database connection with seamless Demo Mode fallback
+let db = mockDb;
+const USE_REAL_MYSQL = process.env.USE_REAL_MYSQL === 'true';
+
+if (USE_REAL_MYSQL) {
+  try {
+    db = mysql.createPool({
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS,
+      database: process.env.DB_NAME,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    }).promise();
+  } catch (err) {
+    console.warn('Real MySQL pool init failed, falling back to Mock DB');
+    db = mockDb;
+  }
+}
 
 const startServer = async () => {
   try {
-    await db.query('SELECT 1');
-    console.log('Database connected successfully');
+    if (db === mockDb) {
+      console.log('🌟 [DEMO MODE ACTIVE] Running with Mock Database (demo_data.json) — No MySQL required!');
+    } else {
+      await db.query('SELECT 1');
+      console.log('Database connected successfully to MySQL');
+    }
     
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (err) {
-    console.error('Database connection failed:', err);
-    process.exit(1);
+    if (IS_PRODUCTION) {
+      console.error('Production database connection failed; refusing to start in demo mode:', err.message);
+      process.exitCode = 1;
+      return;
+    }
+    console.warn('⚠️ Real MySQL connection failed, falling back to Mock DB for presentation:', err.message);
+    db = mockDb;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running in Demo Mode on port ${PORT}`);
+    });
   }
 };
 
@@ -131,7 +171,7 @@ app.get(
       const [registrations] = await db.query(`
         SELECT 
           r.*,
-          u.name AS name,
+          u.name AS user_name,
           u.email AS user_email
         FROM registrations r
         JOIN users u ON r.user_id = u.id
@@ -337,6 +377,7 @@ app.post('/api/payments/fake/:eventId', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Already registered' });
     }
 
+    const paymentId = "FAKE_PAY_" + Date.now();
     await db.query(
       `INSERT INTO registrations
        (event_id, user_id, payment_id, payment_status)
@@ -344,7 +385,7 @@ app.post('/api/payments/fake/:eventId', authenticateToken, async (req, res) => {
       [eventId, userId, paymentId]
     );
     res.json({
-      paymentId: "FAKE_PAY_" + Date.now(),
+      paymentId,
       amount: event.fee,
       message: "Proceed to fake payment"
     });
@@ -583,7 +624,7 @@ app.post('/api/events/:id/register', authenticateToken, async (req, res) => {
 
 app.post('/api/signup', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     // Check email already exists
     const [existing] = await db.query(
@@ -596,71 +637,19 @@ app.post('/api/signup', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000); // 6 digit
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    console.log(`Generated OTP for ${email}: ${otp}`); // Debug log
-    // Save user
     await db.query(
-      `INSERT INTO users (name, email, password, role, otp, otp_expires)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, email, hashedPassword, role, otp, otpExpires]
+      `INSERT INTO users (name, email, password, role, is_verified)
+       VALUES (?, ?, ?, ?, TRUE)`,
+      [name, email, hashedPassword, 'user']
     );
 
-    console.log(`User ${email} registered with OTP ${otp}`); // Debug log
-    // Send OTP mail
-    await sendOtpMail(email, otp);
-
     res.status(201).json({
-      message: 'Signup successful. OTP sent to email.'
+      message: 'Signup successful. You can now log in.'
     });
 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Signup failed' });
-  }
-});
-
-app.post('/api/verify-email', async (req, res) => {
-  try {
-    let { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({ error: 'Email and OTP required' });
-    }
-
-    email = email.trim().toLowerCase();
-    otp = String(otp).trim();
-    console.log('VERIFY REQUEST:', email, otp); // Debug log
-    console.log('VERIFY:', email, otp);
-
-    const [users] = await db.query(
-      `SELECT id FROM users
-       WHERE email = ?
-         AND otp = ?
-         AND otp_expires IS NOT NULL
-         AND otp_expires > NOW()`,
-      [email, otp]
-    );
-
-    if (!users.length) {
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
-    }
-
-    await db.query(
-      `UPDATE users
-       SET is_verified = true,
-           otp = NULL,
-           otp_expires = NULL
-       WHERE email = ?`,
-      [email]
-    );
-
-    res.json({ message: 'Email verified successfully' });
-
-  } catch (err) {
-    console.error('VERIFY ERROR:', err);
-    res.status(500).json({ error: 'Verification failed' });
   }
 });
 
@@ -692,15 +681,6 @@ app.post('/api/login', async (req, res) => {
     }
    
        const user = users[0];
-       console.log('User found:', user.email, 'Verified:', user.is_verified); // Debug log
-    if (!user.is_verified) {
-     return res.status(403).json({
-    error: 'Please verify your email before login'
-  });
-}
-
-
- 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -764,6 +744,43 @@ app.get(
   }
 );
 
+app.patch(
+  '/api/clubs/:clubId/events/:eventId',
+  authenticateToken,
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const clubId = Number(req.params.clubId);
+      const eventId = Number(req.params.eventId);
+      const { status } = req.body;
+
+      if (!Number.isInteger(clubId) || clubId < 1 || !Number.isInteger(eventId) || eventId < 1) {
+        return res.status(400).json({ error: 'Invalid club or event ID.' });
+      }
+      if (!['upcoming', 'past'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be upcoming or past.' });
+      }
+
+      const [events] = await db.query(
+        'SELECT id FROM events WHERE id = ? AND club_id = ?',
+        [eventId, clubId]
+      );
+      if (!events.length) {
+        return res.status(404).json({ error: 'Event not found in this club.' });
+      }
+
+      await db.query(
+        'UPDATE events SET status = ? WHERE id = ? AND club_id = ?',
+        [status, eventId, clubId]
+      );
+      res.json({ message: 'Event status updated successfully.', status });
+    } catch (error) {
+      console.error('Event status update error:', error);
+      res.status(500).json({ error: 'Failed to update event status.' });
+    }
+  }
+);
+
 
 // Modify your event creation endpoint to include created_by
 app.post(
@@ -779,8 +796,56 @@ app.post(
         date,
         venue,
         time,
-        status
+        event_type,
+        coordinator_name,
+        sponsors,
+        status,
+        fee,
+        is_competition
       } = req.body;
+
+      const containsLetter = value => typeof value === 'string' && /\p{L}/u.test(value);
+      const parsedFee = fee === undefined || fee === '' ? 0 : Number(fee);
+      const validDate = typeof date === 'string'
+        && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        && !Number.isNaN(Date.parse(`${date}T00:00:00Z`))
+        && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+
+      if (!containsLetter(title) || !title.trim() || title.trim().length > 255) {
+        return res.status(400).json({ error: 'Title must contain text and be no longer than 255 characters.' });
+      }
+      if (!containsLetter(description) || !description.trim() || description.trim().length > 10000) {
+        return res.status(400).json({ error: 'Description must contain text and be no longer than 10000 characters.' });
+      }
+      if (!validDate) {
+        return res.status(400).json({ error: 'Enter a valid event date.' });
+      }
+      if (!['technical', 'cultural', 'sports'].includes(event_type)) {
+        return res.status(400).json({ error: 'Select a valid event type.' });
+      }
+      if (!containsLetter(venue) || !venue.trim() || venue.trim().length > 255) {
+        return res.status(400).json({ error: 'Venue must contain text and be no longer than 255 characters.' });
+      }
+      if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time || '')) {
+        return res.status(400).json({ error: 'Enter a valid event time.' });
+      }
+      if (!containsLetter(coordinator_name) || !coordinator_name.trim() || coordinator_name.trim().length > 255) {
+        return res.status(400).json({ error: 'Coordinator name must contain text and be no longer than 255 characters.' });
+      }
+      if (sponsors !== undefined && (typeof sponsors !== 'string' || sponsors.length > 255
+        || (sponsors.trim() && !containsLetter(sponsors)))) {
+        return res.status(400).json({ error: 'Sponsor names must contain text and be no longer than 255 characters.' });
+      }
+      if (!Number.isFinite(parsedFee) || parsedFee < 0 || parsedFee > 99999999.99
+        || !/^\d+(?:\.\d{1,2})?$/.test(String(fee === undefined || fee === '' ? 0 : fee))) {
+        return res.status(400).json({ error: 'Fee must be a non-negative amount with up to two decimal places.' });
+      }
+      if (!['upcoming', 'past'].includes(status || 'upcoming')) {
+        return res.status(400).json({ error: 'Select a valid event status.' });
+      }
+      if (is_competition !== undefined && typeof is_competition !== 'boolean') {
+        return res.status(400).json({ error: 'Competition must be true or false.' });
+      }
 
       // 🔍 CHECK FOR VENUE CONFLICT
       const [conflict] = await db.query(
@@ -798,18 +863,23 @@ app.post(
       // ✅ NO CONFLICT → INSERT EVENT
       await db.query(
         `INSERT INTO events 
-        (title, description, date, venue, time, status, club_id, created_by,is_competition)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`,
+        (title, description, date, venue, time, status, club_id, created_by,
+         is_competition, event_type, coordinator_name, sponsors, fee)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          title,
-          description,
+          title.trim(),
+          description.trim(),
           date,
-          venue,
+          venue.trim(),
           time,
           status || "upcoming",
           clubId,
           req.user.id,
-          req.body.is_competition || false
+          is_competition || false,
+          event_type,
+          coordinator_name.trim(),
+          sponsors?.trim() || null,
+          parsedFee
         ]
       );
 

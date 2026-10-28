@@ -6,8 +6,7 @@ const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: '',
-    role: 'user'
+    password: ''
   });
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -21,12 +20,9 @@ const handleSubmit = async (e) => {
 
   try {
     await API.post('/signup', formData);
-
-    // ✅ ONLY navigate to OTP page
-    navigate('/verify-otp', {
-      state: { email: formData.email }
+    navigate('/login', {
+      state: { message: 'Account created successfully. You can now sign in.' }
     });
-
   } catch (error) {
     console.error('Signup error:', error);
     setError(error.response?.data?.error || 'Signup failed');
@@ -90,22 +86,6 @@ const handleSubmit = async (e) => {
               required
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-          </div>
-
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-              Role
-            </label>
-            <select
-              id="role"
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
           </div>
 
           <button

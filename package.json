@@ -1,5 +1,16 @@
 {
+  "name": "club-management-system",
+  "version": "1.0.0",
+  "scripts": {
+    "start:backend": "npm start --prefix backend",
+    "start:frontend": "npm run dev --prefix frontend",
+    "setup:db": "npm run setup-db --prefix backend",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "test": "npm test --prefix backend"
+  },
   "dependencies": {
+    "docx": "^9.14.0",
     "pdfkit": "^0.17.2"
   }
 }
