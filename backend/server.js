@@ -34,8 +34,11 @@ if (IS_PRODUCTION) {
   if (!CORS_ORIGINS.length) {
     throw new Error('Production requires CORS_ORIGIN to list the deployed frontend origin(s).');
   }
-  if (process.env.DB_SSL !== 'true' || !process.env.DB_SSL_CA) {
-    throw new Error('Production requires verified MySQL TLS configured with DB_SSL=true and DB_SSL_CA.');
+  const missingMysqlTlsSettings = [];
+  if (process.env.DB_SSL !== 'true') missingMysqlTlsSettings.push('DB_SSL=true');
+  if (!process.env.DB_SSL_CA?.trim()) missingMysqlTlsSettings.push('DB_SSL_CA (Aiven CA certificate PEM)');
+  if (missingMysqlTlsSettings.length) {
+    throw new Error(`Production requires verified MySQL TLS. Set ${missingMysqlTlsSettings.join(' and ')} in the Render environment.`);
   }
 }
 
